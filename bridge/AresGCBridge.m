@@ -11,9 +11,10 @@
 #define ARES_MAGIC 0x41524553 // 'ARES'
 #define ARES_PORT 49152
 
-// Keep the natural 16-byte layout used by Swift's AresPacket.  This is local
-// UDP only, but matching the two layouts avoids relying on datagram truncation.
-struct AresPacket {
+// Swift sends this state as a 16-byte value with two trailing alignment bytes.
+// Read the original 14-byte wire payload and let recv discard those trailing
+// bytes; this is the known-good layout used by the bridge.
+struct __attribute__((packed)) AresPacket {
     uint32_t magic;      // 'ARES'
     uint16_t buttons;    // Bitmask for buttons (bits 0..12)
     int8_t   lx;         // -127 .. 127

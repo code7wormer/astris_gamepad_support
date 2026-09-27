@@ -25,7 +25,7 @@ let ARES_UDP_PORT: UInt16 = 49152
 let ARES_MAGIC: UInt32 = 0x41524553 // 'ARES'
 
 // Print every element's usage page/usage once at startup
-let DEBUG_DUMP_ELEMENTS = ProcessInfo.processInfo.environment["ARES_DEBUG"] == "1"
+let DEBUG_DUMP_ELEMENTS = true
 let TRACE_INPUT_EVENTS = ProcessInfo.processInfo.environment["ARES_TRACE"] == "1"
 
 // Generic Desktop usages (HID Usage Tables 1.12, page 0x01)
