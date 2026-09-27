@@ -39,6 +39,8 @@ static int g_sdlHatCount = 0;
 static int16_t g_lastAxes[16] = {0};
 static uint8_t g_lastButtons[32] = {0};
 static uint8_t g_lastHats[4] = {0};
+static uint16_t g_lastTraceButtons = 0;
+static uint8_t g_lastTraceHat = 8;
 
 static void logAzaharSDLJoysticksIfRequested(void) {
     if (strcmp(getenv("ARES_DEBUG") ?: "", "1") != 0) return;
@@ -192,6 +194,13 @@ static void setupControllerIfNeeded(void) {
 
 static void processPacket(const struct AresPacket *pkt) {
     if (pkt->magic != ARES_MAGIC) return;
+
+    if (strcmp(getenv("ARES_DEBUG") ?: "", "1") == 0 &&
+        (pkt->buttons != g_lastTraceButtons || pkt->hat != g_lastTraceHat)) {
+        g_lastTraceButtons = pkt->buttons;
+        g_lastTraceHat = pkt->hat;
+        NSLog(@"[AresGCBridge] Ares state: buttons=0x%04X hat=%u", pkt->buttons, pkt->hat);
+    }
 
     if (!g_aresController) {
         setupControllerIfNeeded();
