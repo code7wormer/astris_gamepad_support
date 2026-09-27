@@ -12,3 +12,6 @@ bridge/*.dylib
 
 # Runtime diagnostics
 *.log
+
+# Superseded local investigation notes
+ares-controller-troubleshooting-summary.md

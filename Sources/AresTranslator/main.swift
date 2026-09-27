@@ -46,7 +46,7 @@ func checkAndRequestPermissions() {
     print("Permissions check:")
     print("  • Input Monitoring (ListenEvent): \(listen == kIOHIDAccessTypeGranted ? "GRANTED" : "NOT GRANTED / DENIED")")
     print("  • Accessibility (PostEvent):      \(post == kIOHIDAccessTypeGranted ? "GRANTED" : "NOT GRANTED / DENIED")")
-    
+
     if listen != kIOHIDAccessTypeGranted {
         print("  --> Requesting Input Monitoring prompt...")
         _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
