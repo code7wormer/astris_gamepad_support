@@ -43,8 +43,8 @@ done
 sleep 0.2
 
 echo "[Ares Azahar launcher] Starting persistent controller helper..."
-# Run under launchd rather than as this shell's child. This survives closing the
-# one-click .command window and is stopped/replaced on the next launch.
+# Run under launchd so the helper is reliable while the launcher waits for
+# Azahar. The EXIT trap below always unloads it when Azahar or this launcher exits.
 launchctl bootout "gui/$(id -u)/$TRANSLATOR_SERVICE" 2>/dev/null || true
 launchctl submit -l "$TRANSLATOR_SERVICE" \
     -o "$TRANSLATOR_LOG" -e "$TRANSLATOR_LOG" -- \
