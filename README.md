@@ -68,6 +68,12 @@ To use a non-default Astris location, set `ASTRIS_APP` once for that launch:
 ASTRIS_APP="/path/to/Astris.app" ./launch_astris.sh
 ```
 
+### Spotlight launcher
+
+Run `./install_nintendo_app.sh` once to install **Nintendo.app** in `/Applications`. It appears in Spotlight and asks whether to launch Astris or Azahar. It remembers this project folder and asks you to select it again if you later move the repository.
+
+Remove `/Applications/Nintendo.app` to remove the Spotlight launcher. The launcher does not copy the controller project; keep this folder while you use it.
+
 Useful commands:
 
 ```bash

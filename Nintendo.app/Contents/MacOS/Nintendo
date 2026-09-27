@@ -1,0 +1,54 @@
+#!/bin/bash
+# macOS app launcher for the controller project. It remembers the project
+# folder and asks again if the folder was moved or deleted.
+set -u
+
+APP_NAME="Nintendo"
+SETTINGS_DIR="$HOME/Library/Application Support/$APP_NAME"
+PROJECT_FILE="$SETTINGS_DIR/project-path"
+DEFAULT_PROJECT="$HOME/Projects/Astris_gamepad"
+
+dialog() {
+    /usr/bin/osascript -e "display alert \"$APP_NAME\" message \"$1\" as warning" >/dev/null
+}
+
+is_project() {
+    [ -x "$1/launch_astris.sh" ] && [ -x "$1/launch_azahar.sh" ]
+}
+
+project=""
+if [ -f "$PROJECT_FILE" ]; then
+    project="$(<"$PROJECT_FILE")"
+fi
+if ! is_project "$project" && is_project "$DEFAULT_PROJECT"; then
+    project="$DEFAULT_PROJECT"
+fi
+if ! is_project "$project"; then
+    project="$(/usr/bin/osascript -e 'POSIX path of (choose folder with prompt "Select the Astris_gamepad folder")' 2>/dev/null || true)"
+fi
+
+if ! is_project "$project"; then
+    dialog "The selected folder is not an Astris_gamepad project."
+    exit 1
+fi
+
+/bin/mkdir -p "$SETTINGS_DIR"
+printf '%s\n' "$project" > "$PROJECT_FILE"
+
+choice="$(/usr/bin/osascript -e 'choose from list {"Astris", "Azahar"} with title "Nintendo" with prompt "Open with Cosmic Byte Ares controller support:" default items {"Astris"}' 2>/dev/null || true)"
+case "$choice" in
+    Astris)
+        launcher="$project/launch_astris.sh"
+        ;;
+    Azahar)
+        launcher="$project/launch_azahar.sh"
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+if ! "$launcher"; then
+    dialog "The launcher could not start. See the Terminal output or /tmp/astris-ares-translator.log for details."
+    exit 1
+fi
