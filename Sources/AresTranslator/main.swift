@@ -102,7 +102,7 @@ final class AzaharKeyboardEmitter {
         guard let event = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: shouldPress) else {
             return
         }
-        CGEventPostToPid(pid, event)
+        event.postToPid(pid)
         pressed[key] = shouldPress
     }
 
