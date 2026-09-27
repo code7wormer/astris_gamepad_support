@@ -84,6 +84,24 @@ ARES_TRACE=1 ./launch_astris.sh  # records physical input events in the helper l
 
 The launcher checks the two Astris signing entitlements that permit the bridge (`allow-dyld-environment-variables` and `disable-library-validation`). If an update removes either one, it stops before launching rather than starting Astris without controller support. In that case, keep this project folder and wait for an updated compatible Astris build or bridge approach.
 
+## Azahar (Nintendo 3DS)
+
+Azahar cannot enumerate this Ares controller through its SDL backend on this Mac. The included Azahar launcher therefore translates Ares input to Azahar's built-in **Default** keyboard profile. It does not inject code into Azahar.
+
+1. Quit Azahar and Astris.
+2. Double-click **`Run Azahar with Ares.command`**, or run:
+
+   ```bash
+   cd /path/to/Astris_gamepad
+   ./launch_azahar.sh
+   ```
+
+3. Click the Azahar game window before using the controller.
+
+The controller service runs through macOS `launchd`, so closing the one-click launcher window does not stop it. It is replaced automatically each time the Azahar launcher runs. When Azahar is not the frontmost app, it emits no keyboard events.
+
+Azahar's Default profile is required. Its relevant keys are `A/S/Z/X` for face buttons, `Q/W` for shoulders, `1/2` for triggers, `T/G/F/H` for D-pad, arrow keys for the Circle Pad, and `I/J/K/L` for the C-Stick. You can verify Azahar's keyboard controls directly with those keys before launching the controller helper.
+
 ## Limitations
 
 - This release targets the **Cosmic Byte Ares wired controller** (`VID:PID 2563:057a`) in Direct Input mode. Other controllers are not automatically supported.
@@ -91,6 +109,7 @@ The launcher checks the two Astris signing entitlements that permit the bridge (
 - Standard buttons, triggers, D-pad, and both sticks are supported. Rumble, motion controls, touch input, and controller LEDs are not implemented.
 - The bridge depends on Astris retaining its current hardened-runtime exceptions. The update diagnostic detects a removed entitlement; it cannot bypass one.
 - Astris must be launched through this script. The bridge cannot be injected into an already-open Astris instance.
+- Azahar support is keyboard translation, not native controller support. It follows Azahar's Default keyboard profile and may affect emulator shortcuts if the game window is not focused.
 - This is a user-space compatibility bridge, not an official Astris feature.
 
 ## Troubleshooting
@@ -99,6 +118,7 @@ The launcher checks the two Astris signing entitlements that permit the bridge (
 - **Astris is already open:** quit it before using the launcher. An already-open instance cannot load the bridge afterward.
 - **Build-tool error:** install Apple Command Line Tools with `xcode-select --install`, then launch again.
 - **Need detailed HID enumeration:** launch once with `ARES_DEBUG=1 ./launch_astris.sh`; the extra details are written to the helper log.
+- **Azahar works with the keyboard but not the controller:** quit Azahar, start it using `Run Azahar with Ares.command`, and click the game window. Confirm that Azahar has its Default keyboard profile selected.
 
 
 ## Controller mapping
