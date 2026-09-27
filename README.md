@@ -98,7 +98,7 @@ Azahar cannot enumerate this Ares controller through its SDL backend on this Mac
 
 3. Click the Azahar game window before using the controller.
 
-The controller service runs through macOS `launchd`, so closing the one-click launcher window does not stop it. It is replaced automatically each time the Azahar launcher runs. When Azahar is not the frontmost app, it emits no keyboard events.
+The controller service runs through macOS `launchd` for reliable background operation, but the launcher owns its lifetime: it stops automatically when Azahar quits or when its Terminal window is closed. When Azahar is not the frontmost app, it emits no keyboard events.
 
 Azahar's Default profile is required. Its relevant keys are `A/S/Z/X` for face buttons, `Q/W` for shoulders, `1/2` for triggers, `T/G/F/H` for D-pad, arrow keys for the Circle Pad, and `I/J/K/L` for the C-Stick. You can verify Azahar's keyboard controls directly with those keys before launching the controller helper.
 

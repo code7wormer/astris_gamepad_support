@@ -12,6 +12,16 @@ AZAHAR_BIN="$AZAHAR_APP/Contents/MacOS/azahar"
 fail() { echo "[Ares Azahar launcher] Error: $*" >&2; exit 1; }
 require_tool() { command -v "$1" >/dev/null || fail "'$1' is required. Install Xcode Command Line Tools with: xcode-select --install"; }
 
+helper_started=0
+cleanup() {
+    if [ "$helper_started" -eq 1 ]; then
+        echo "[Ares Azahar launcher] Stopping controller helper..."
+        launchctl bootout "gui/$(id -u)/$TRANSLATOR_SERVICE" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+
 [ -x "$AZAHAR_BIN" ] || fail "Azahar was not found at '$AZAHAR_APP'. Set AZAHAR_APP to its .app path and run again."
 if pgrep -x azahar >/dev/null; then
     fail "Azahar is already open. Quit it first, then relaunch through this script so the controller bridge can load."
@@ -42,6 +52,19 @@ launchctl submit -l "$TRANSLATOR_SERVICE" \
 sleep 0.5
 launchctl print "gui/$(id -u)/$TRANSLATOR_SERVICE" >/dev/null 2>&1 || \
     fail "The controller helper service did not start. See $TRANSLATOR_LOG"
+helper_started=1
 
 echo "[Ares Azahar launcher] Launching Azahar.app with Ares keyboard controls..."
 open -n "$AZAHAR_APP" --args "$@"
+
+# Keep this launcher alive while Azahar is open. Its EXIT trap also cleans up
+# the service if this Terminal window is closed early.
+for _ in {1..50}; do
+    pgrep -x azahar >/dev/null && break
+    sleep 0.1
+done
+pgrep -x azahar >/dev/null || fail "Azahar did not launch."
+echo "[Ares Azahar launcher] Azahar is running. Closing Azahar or this Terminal window stops the helper."
+while pgrep -x azahar >/dev/null; do
+    sleep 1
+done
