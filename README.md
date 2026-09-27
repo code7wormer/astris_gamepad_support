@@ -100,6 +100,16 @@ The launcher checks the two Astris signing entitlements that permit the bridge (
 - **Build-tool error:** install Apple Command Line Tools with `xcode-select --install`, then launch again.
 - **Need detailed HID enumeration:** launch once with `ARES_DEBUG=1 ./launch_astris.sh`; the extra details are written to the helper log.
 
+## Azahar
+
+Azahar can use the same bridge, but must be launched separately. Quit both Astris and Azahar, then double-click `Run Azahar with Ares.command`, or run:
+
+```bash
+./launch_azahar.sh
+```
+
+Do not use the old SDL profile created during troubleshooting; Azahar rejected that profile's serialized mappings. The launcher supplies the native GameController profile directly.
+
 ## Controller mapping
 
 The Ares is read as USB VID:PID `2563:057a`. Left stick uses X/Y, right stick uses Z/Rz, the D-pad uses the hat switch, and all 13 buttons are translated to an extended GameController profile.
