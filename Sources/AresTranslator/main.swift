@@ -160,7 +160,10 @@ func startCapture() {
         let min = IOHIDElementGetLogicalMin(element)
         let max = IOHIDElementGetLogicalMax(element)
 
-        if TRACE_INPUT_EVENTS {
+        // The controller continuously emits vendor telemetry on page 0xFF00.
+        // Trace only the controls this bridge consumes, otherwise the log is
+        // flooded and diagnostic I/O can delay real input processing.
+        if TRACE_INPUT_EVENTS && (page == USAGE_PAGE_GENERIC_DESKTOP || page == USAGE_PAGE_BUTTON) {
             print(String(format: "Input event: page=0x%02X usage=0x%02X value=%d", page, usage, intValue))
         }
 
