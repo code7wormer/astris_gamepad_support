@@ -15,7 +15,7 @@ if pgrep -x azahar >/dev/null; then
     exit 1
 fi
 if [ ! -f "$BRIDGE_DYLIB" ] || [ "$BRIDGE_SOURCE" -nt "$BRIDGE_DYLIB" ]; then
-    clang -dynamiclib -O2 -fobjc-arc -framework Foundation -framework GameController \
+    clang -dynamiclib -O2 -fobjc-arc -framework Foundation -framework GameController -framework IOKit \
         -o "$BRIDGE_DYLIB" "$BRIDGE_SOURCE"
 fi
 

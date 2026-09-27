@@ -8,6 +8,7 @@
 #import <unistd.h>
 #import <fcntl.h>
 #import <dlfcn.h>
+#import <IOKit/hidsystem/IOHIDLib.h>
 
 #define ARES_MAGIC 0x41524553 // 'ARES'
 #define ARES_PORT 49152
@@ -92,6 +93,16 @@ static void logAzaharSDLJoysticksIfRequested(void) {
                   g_sdlAxisCount, g_sdlButtonCount, g_sdlHatCount);
         }
     }
+}
+
+static void requestInputMonitoringIfNeeded(void) {
+    IOHIDAccessType access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent);
+    if (access == kIOHIDAccessTypeGranted) {
+        NSLog(@"[AresGCBridge] Input Monitoring: granted to host app");
+        return;
+    }
+    NSLog(@"[AresGCBridge] Input Monitoring: requesting permission for host app");
+    IOHIDRequestAccess(kIOHIDRequestTypeListenEvent);
 }
 
 static void traceAzaharSDLStateIfRequested(void) {
@@ -293,12 +304,15 @@ static void AresGCBridge_Init(void) {
     // synthetic snapshot.  This diagnostic mode loads only long enough to
     // report Azahar's own physical SDL GUID.
     if (strcmp(getenv("ARES_SDL_PROBE_ONLY") ?: "", "1") == 0) {
+        requestInputMonitoringIfNeeded();
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
                        dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
             logAzaharSDLJoysticksIfRequested();
         });
         return;
     }
+
+    requestInputMonitoringIfNeeded();
 
     Class gcClass = NSClassFromString(@"GCController");
     if (!gcClass) {
