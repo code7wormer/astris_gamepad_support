@@ -56,4 +56,6 @@ echo "[Ares Azahar launcher] Launching Azahar.app with Ares controller support..
 # LaunchServices preserves Azahar's normal app-bundle environment (camera,
 # documents, and sandbox paths). `open --env` passes the bridge only to this
 # new instance, avoiding Azahar's direct-executable warning.
-open -n --env "DYLD_INSERT_LIBRARIES=$BRIDGE_DYLIB" "$AZAHAR_APP" --args "$@"
+open -n --env "DYLD_INSERT_LIBRARIES=$BRIDGE_DYLIB" --env "ARES_DEBUG=${ARES_DEBUG:-0}" \
+    --stdout /tmp/azahar-ares-bridge.log --stderr /tmp/azahar-ares-bridge.log \
+    "$AZAHAR_APP" --args "$@"

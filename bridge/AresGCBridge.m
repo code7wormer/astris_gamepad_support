@@ -7,6 +7,7 @@
 #import <arpa/inet.h>
 #import <unistd.h>
 #import <fcntl.h>
+#import <dlfcn.h>
 
 #define ARES_MAGIC 0x41524553 // 'ARES'
 #define ARES_PORT 49152
@@ -27,6 +28,33 @@ struct __attribute__((packed)) AresPacket {
 
 static GCController *g_aresController = nil;
 static dispatch_source_t g_socketSource = nil;
+
+static void logAzaharSDLJoysticksIfRequested(void) {
+    if (strcmp(getenv("ARES_DEBUG") ?: "", "1") != 0) return;
+
+    typedef struct { uint8_t data[16]; } SDL_JoystickGUID;
+    typedef int (*SDL_NumJoysticksFn)(void);
+    typedef void *(*SDL_JoystickOpenFn)(int);
+    typedef SDL_JoystickGUID (*SDL_JoystickGetGUIDFn)(void *);
+    typedef void (*SDL_JoystickGetGUIDStringFn)(SDL_JoystickGUID, char *, int);
+    typedef const char *(*SDL_JoystickNameForIndexFn)(int);
+
+    SDL_NumJoysticksFn numJoysticks = (SDL_NumJoysticksFn)dlsym(RTLD_DEFAULT, "SDL_NumJoysticks");
+    SDL_JoystickOpenFn joystickOpen = (SDL_JoystickOpenFn)dlsym(RTLD_DEFAULT, "SDL_JoystickOpen");
+    SDL_JoystickGetGUIDFn joystickGUID = (SDL_JoystickGetGUIDFn)dlsym(RTLD_DEFAULT, "SDL_JoystickGetGUID");
+    SDL_JoystickGetGUIDStringFn guidString = (SDL_JoystickGetGUIDStringFn)dlsym(RTLD_DEFAULT, "SDL_JoystickGetGUIDString");
+    SDL_JoystickNameForIndexFn joystickName = (SDL_JoystickNameForIndexFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNameForIndex");
+    if (!numJoysticks || !joystickOpen || !joystickGUID || !guidString) return;
+
+    for (int index = 0; index < numJoysticks(); index++) {
+        void *joystick = joystickOpen(index);
+        if (!joystick) continue;
+        char guid[33] = {0};
+        guidString(joystickGUID(joystick), guid, sizeof(guid));
+        NSLog(@"[AresGCBridge] SDL joystick %d: %s | GUID: %s", index,
+              joystickName ? joystickName(index) : "Unknown", guid);
+    }
+}
 
 // Swizzled +[GCController controllers]
 static NSArray<GCController *> * (*orig_controllers)(id, SEL) = NULL;
@@ -210,4 +238,5 @@ static void AresGCBridge_Init(void) {
 
     // Start UDP server to receive packets from AresTranslator
     startUDPServer();
+    logAzaharSDLJoysticksIfRequested();
 }
