@@ -283,8 +283,8 @@ static void AresGCBridge_Init(void) {
     // synthetic snapshot.  This diagnostic mode loads only long enough to
     // report Azahar's own physical SDL GUID.
     if (strcmp(getenv("ARES_SDL_PROBE_ONLY") ?: "", "1") == 0) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
-                       dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
+                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
             logAzaharSDLJoysticksIfRequested();
         });
         return;
