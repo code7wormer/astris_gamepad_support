@@ -54,6 +54,14 @@ launchctl print "gui/$(id -u)/$TRANSLATOR_SERVICE" >/dev/null 2>&1 || \
     fail "The controller helper service did not start. See $TRANSLATOR_LOG"
 helper_started=1
 
+# A Swift rebuild can make macOS treat the helper as a newly authorized
+# executable. Stop here with an actionable error rather than opening Azahar
+# without usable controller input.
+sleep 0.5
+if grep -q 'NOT GRANTED / DENIED' "$TRANSLATOR_LOG"; then
+    fail "macOS denied AresTranslator Input Monitoring or Accessibility. Enable the current AresTranslator entry in both Privacy & Security panes, then launch again."
+fi
+
 echo "[Ares Azahar launcher] Launching Azahar.app with Ares keyboard controls..."
 open -n "$AZAHAR_APP" --args "$@"
 

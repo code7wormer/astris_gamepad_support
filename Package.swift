@@ -11,15 +11,6 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AppKit"),
             ]
-        ),
-        .executableTarget(
-            name: "GCTest",
-            path: "Sources/GCTest",
-            linkerSettings: [
-                .linkedFramework("AppKit"),
-                .linkedFramework("GameController"),
-                .linkedFramework("IOKit"),
-            ]
         )
     ]
 )
