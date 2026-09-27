@@ -238,5 +238,12 @@ static void AresGCBridge_Init(void) {
 
     // Start UDP server to receive packets from AresTranslator
     startUDPServer();
-    logAzaharSDLJoysticksIfRequested();
+    // Azahar initializes its statically linked SDL after constructors have
+    // run. Delay the optional probe so its joystick list is populated.
+    if (strcmp(getenv("ARES_DEBUG") ?: "", "1") == 0) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
+            logAzaharSDLJoysticksIfRequested();
+        });
+    }
 }
