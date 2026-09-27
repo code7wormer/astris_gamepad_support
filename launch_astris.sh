@@ -41,7 +41,7 @@ build_components() {
     require_tool swift
     if [ ! -f "$BRIDGE_DYLIB" ] || [ "$BRIDGE_SOURCE" -nt "$BRIDGE_DYLIB" ]; then
         echo "[Ares launcher] Building controller bridge..."
-        clang -dynamiclib -O2 -fobjc-arc -framework Foundation -framework GameController \
+        clang -dynamiclib -O2 -fobjc-arc -framework Foundation -framework GameController -framework IOKit \
             -o "$BRIDGE_DYLIB" "$BRIDGE_SOURCE"
     fi
     if [ ! -x "$TRANSLATOR_BIN" ] || [ "$DIR/Sources/AresTranslator/main.swift" -nt "$TRANSLATOR_BIN" ]; then
