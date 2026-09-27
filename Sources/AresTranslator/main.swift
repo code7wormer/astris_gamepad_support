@@ -26,6 +26,7 @@ let ARES_MAGIC: UInt32 = 0x41524553 // 'ARES'
 
 // Print every element's usage page/usage once at startup
 let DEBUG_DUMP_ELEMENTS = ProcessInfo.processInfo.environment["ARES_DEBUG"] == "1"
+let TRACE_INPUT_EVENTS = ProcessInfo.processInfo.environment["ARES_TRACE"] == "1"
 
 // Generic Desktop usages (HID Usage Tables 1.12, page 0x01)
 let USAGE_PAGE_GENERIC_DESKTOP = 0x01
@@ -158,6 +159,10 @@ func startCapture() {
         let intValue = IOHIDValueGetIntegerValue(value)
         let min = IOHIDElementGetLogicalMin(element)
         let max = IOHIDElementGetLogicalMax(element)
+
+        if TRACE_INPUT_EVENTS {
+            print(String(format: "Input event: page=0x%02X usage=0x%02X value=%d", page, usage, intValue))
+        }
 
         // Normalize any axis to the -127...127 range
         func normalizedSigned() -> Int8 {

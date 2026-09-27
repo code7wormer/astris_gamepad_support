@@ -73,6 +73,7 @@ Useful commands:
 ```bash
 ./launch_astris.sh --diagnose  # checks Astris compatibility and build tools
 ./launch_astris.sh --stop      # stops only the controller helper
+ARES_TRACE=1 ./launch_astris.sh  # records physical input events in the helper log
 ```
 
 ## After an Astris update

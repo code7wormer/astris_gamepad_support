@@ -18,6 +18,8 @@ Usage: ./launch_astris.sh [--diagnose | --stop | Astris options]
 
   --diagnose  Check Astris compatibility and show the helper log location.
   --stop      Stop the AresTranslator helper (Astris is left open).
+
+Set ARES_TRACE=1 before launching to write every physical input event to the helper log.
 EOF
 }
 
