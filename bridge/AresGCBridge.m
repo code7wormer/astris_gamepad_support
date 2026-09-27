@@ -50,8 +50,6 @@ static void logAzaharSDLJoysticksIfRequested(void) {
     typedef void (*SDL_JoystickGetGUIDStringFn)(SDL_JoystickGUID, char *, int);
     typedef const char *(*SDL_JoystickNameForIndexFn)(int);
     typedef int (*SDL_JoystickNumAxesFn)(void *);
-    typedef int (*SDL_JoystickNumButtonsFn)(void *);
-    typedef int (*SDL_JoystickNumHatsFn)(void *);
 
     SDL_NumJoysticksFn numJoysticks = (SDL_NumJoysticksFn)dlsym(RTLD_DEFAULT, "SDL_NumJoysticks");
     SDL_JoystickOpenFn joystickOpen = (SDL_JoystickOpenFn)dlsym(RTLD_DEFAULT, "SDL_JoystickOpen");
@@ -59,8 +57,6 @@ static void logAzaharSDLJoysticksIfRequested(void) {
     SDL_JoystickGetGUIDStringFn guidString = (SDL_JoystickGetGUIDStringFn)dlsym(RTLD_DEFAULT, "SDL_JoystickGetGUIDString");
     SDL_JoystickNameForIndexFn joystickName = (SDL_JoystickNameForIndexFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNameForIndex");
     SDL_JoystickNumAxesFn numAxes = (SDL_JoystickNumAxesFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNumAxes");
-    SDL_JoystickNumButtonsFn numButtons = (SDL_JoystickNumButtonsFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNumButtons");
-    SDL_JoystickNumHatsFn numHats = (SDL_JoystickNumHatsFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNumHats");
     if (!numJoysticks || !joystickOpen || !joystickGUID || !guidString) return;
 
     for (int index = 0; index < numJoysticks(); index++) {
@@ -70,11 +66,13 @@ static void logAzaharSDLJoysticksIfRequested(void) {
         guidString(joystickGUID(joystick), guid, sizeof(guid));
         NSLog(@"[AresGCBridge] SDL joystick %d: %s | GUID: %s", index,
               joystickName ? joystickName(index) : "Unknown", guid);
-        if (index == 0 && numAxes && numButtons && numHats) {
+        if (index == 0 && numAxes) {
             g_sdlJoystick = joystick;
             g_sdlAxisCount = MIN(numAxes(joystick), 16);
-            g_sdlButtonCount = MIN(numButtons(joystick), 32);
-            g_sdlHatCount = MIN(numHats(joystick), 4);
+            // Azahar's SDL build does not export NumButtons/NumHats, but its
+            // getters are bounds-safe. Probe the common controller ranges.
+            g_sdlButtonCount = 16;
+            g_sdlHatCount = 1;
             g_sdlGetAxis = (int16_t (*)(void *, int))dlsym(RTLD_DEFAULT, "SDL_JoystickGetAxis");
             g_sdlGetButton = (uint8_t (*)(void *, int))dlsym(RTLD_DEFAULT, "SDL_JoystickGetButton");
             g_sdlGetHat = (uint8_t (*)(void *, int))dlsym(RTLD_DEFAULT, "SDL_JoystickGetHat");
