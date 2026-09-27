@@ -35,6 +35,22 @@ fi
 /bin/mkdir -p "$SETTINGS_DIR"
 printf '%s\n' "$project" > "$PROJECT_FILE"
 
+bring_forward() {
+    /usr/bin/open -a "$1"
+    dialog "$1 is already running. It has been brought to the front; its controller helper was left untouched."
+}
+
+# Only one emulator can own the Ares helper at a time. Most importantly, do
+# not invoke a second launcher: its cleanup path could stop the active one.
+if /usr/bin/pgrep -x Astris >/dev/null; then
+    bring_forward "Astris"
+    exit 0
+fi
+if /usr/bin/pgrep -x azahar >/dev/null; then
+    bring_forward "Azahar"
+    exit 0
+fi
+
 choice="$(/usr/bin/osascript -e 'choose from list {"Astris", "Azahar"} with title "Nintendo" with prompt "Open with Cosmic Byte Ares controller support:" default items {"Astris"}' 2>/dev/null || true)"
 case "$choice" in
     Astris)
@@ -48,7 +64,6 @@ case "$choice" in
         ;;
 esac
 
-if ! "$launcher"; then
-    dialog "The launcher could not start. See the Terminal output or /tmp/astris-ares-translator.log for details."
-    exit 1
-fi
+# Detach the selected launcher from this app bundle. Force-quitting Nintendo
+# can therefore never stop an already-running emulator or its helper.
+/usr/bin/nohup "$launcher" > /tmp/nintendo-launcher.log 2>&1 < /dev/null &

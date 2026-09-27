@@ -74,6 +74,8 @@ Run `./install_nintendo_app.sh` once to install **Nintendo.app** in `/Applicatio
 
 Remove `/Applications/Nintendo.app` to remove the Spotlight launcher. The launcher does not copy the controller project; keep this folder while you use it.
 
+Only one emulator can use the Ares helper at once. If Nintendo.app is opened while Astris or Azahar is already running, it brings that emulator forward without starting a second launcher or altering the active controller session.
+
 Useful commands:
 
 ```bash
