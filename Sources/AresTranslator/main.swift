@@ -123,14 +123,15 @@ final class AzaharKeyboardEmitter {
         set(46, pressed: (input.buttons & (1 << 9)) != 0)  // M / Start
         set(11, pressed: (input.buttons & (1 << 12)) != 0) // B / Home
 
-        // D-pad uses Azahar's default T/G/F/H keys.
+        // D-pad uses T/G/C/H. C is intentional: it avoids the user's F-key
+        // conflict in Azahar's keyboard profile.
         let up = input.hat == 0 || input.hat == 1 || input.hat == 7
         let right = input.hat == 1 || input.hat == 2 || input.hat == 3
         let down = input.hat == 3 || input.hat == 4 || input.hat == 5
         let left = input.hat == 5 || input.hat == 6 || input.hat == 7
         set(17, pressed: up)     // T
         set(5, pressed: down)    // G
-        set(3, pressed: left)    // F
+        set(8, pressed: left)    // C
         set(4, pressed: right)   // H
 
         // Left stick -> arrow keys (circle pad); right stick -> I/J/K/L (C-stick).
