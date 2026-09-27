@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import AppKit
 import IOKit.hid
 import IOKit.hidsystem
 
@@ -27,6 +28,7 @@ let ARES_MAGIC: UInt32 = 0x41524553 // 'ARES'
 // Print every element's usage page/usage once at startup
 let DEBUG_DUMP_ELEMENTS = true
 let TRACE_INPUT_EVENTS = ProcessInfo.processInfo.environment["ARES_TRACE"] == "1"
+let AZAHAR_KEYBOARD_MODE = ProcessInfo.processInfo.environment["ARES_AZAHAR_KEYBOARD"] == "1"
 
 // Generic Desktop usages (HID Usage Tables 1.12, page 0x01)
 let USAGE_PAGE_GENERIC_DESKTOP = 0x01
@@ -73,6 +75,76 @@ final class ControllerState {
 
 let state = ControllerState()
 let stateLock = NSLock()
+
+struct KeyboardState {
+    let buttons: UInt16
+    let lx: Int8
+    let ly: Int8
+    let rx: Int8
+    let ry: Int8
+    let hat: UInt8
+}
+
+// Azahar's default keyboard profile, expressed as macOS virtual key codes.
+// Events are posted only to the Azahar process, never to the active desktop.
+final class AzaharKeyboardEmitter {
+    private let bundleIdentifier = "org.azahar-emu.azahar"
+    private var pressed: [CGKeyCode: Bool] = [:]
+    private let threshold: Int8 = 55
+
+    private func targetPID() -> pid_t? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .first(where: { !$0.isTerminated })?.processIdentifier
+    }
+
+    private func set(_ key: CGKeyCode, pressed shouldPress: Bool, pid: pid_t) {
+        guard pressed[key, default: false] != shouldPress else { return }
+        guard let event = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: shouldPress) else {
+            return
+        }
+        CGEventPostToPid(pid, event)
+        pressed[key] = shouldPress
+    }
+
+    func update(_ input: KeyboardState) {
+        guard let pid = targetPID() else { return }
+
+        // Face buttons: physical A/B/X/Y -> Azahar defaults A/S/Z/X.
+        set(0, pressed: (input.buttons & (1 << 2)) != 0, pid: pid)   // A
+        set(1, pressed: (input.buttons & (1 << 1)) != 0, pid: pid)   // S
+        set(6, pressed: (input.buttons & (1 << 3)) != 0, pid: pid)   // Z
+        set(7, pressed: (input.buttons & (1 << 0)) != 0, pid: pid)   // X
+        set(12, pressed: (input.buttons & (1 << 4)) != 0, pid: pid)  // Q / L
+        set(13, pressed: (input.buttons & (1 << 5)) != 0, pid: pid)  // W / R
+        set(18, pressed: (input.buttons & (1 << 6)) != 0, pid: pid)  // 1 / ZL
+        set(19, pressed: (input.buttons & (1 << 7)) != 0, pid: pid)  // 2 / ZR
+        set(45, pressed: (input.buttons & (1 << 8)) != 0, pid: pid)  // N / Select
+        set(46, pressed: (input.buttons & (1 << 9)) != 0, pid: pid)  // M / Start
+        set(11, pressed: (input.buttons & (1 << 12)) != 0, pid: pid) // B / Home
+
+        // D-pad uses Azahar's default T/G/F/H keys.
+        let up = input.hat == 0 || input.hat == 1 || input.hat == 7
+        let right = input.hat == 1 || input.hat == 2 || input.hat == 3
+        let down = input.hat == 3 || input.hat == 4 || input.hat == 5
+        let left = input.hat == 5 || input.hat == 6 || input.hat == 7
+        set(17, pressed: up, pid: pid)     // T
+        set(5, pressed: down, pid: pid)    // G
+        set(3, pressed: left, pid: pid)    // F
+        set(4, pressed: right, pid: pid)   // H
+
+        // Left stick -> arrow keys (circle pad); right stick -> I/J/K/L (C-stick).
+        set(126, pressed: input.ly > threshold, pid: pid)
+        set(125, pressed: input.ly < -threshold, pid: pid)
+        set(123, pressed: input.lx < -threshold, pid: pid)
+        set(124, pressed: input.lx > threshold, pid: pid)
+        set(34, pressed: input.ry > threshold, pid: pid)  // I
+        set(40, pressed: input.ry < -threshold, pid: pid)  // K
+        set(38, pressed: input.rx < -threshold, pid: pid)  // J
+        set(37, pressed: input.rx > threshold, pid: pid)   // L
+    }
+}
+
+let azaharKeyboard = AZAHAR_KEYBOARD_MODE ? AzaharKeyboardEmitter() : nil
 
 // IOHIDManager is a Core Foundation object.  Scheduling it on the run loop
 // does not transfer ownership, so it must remain strongly held after
@@ -175,7 +247,6 @@ func startCapture() {
         }
 
         stateLock.lock()
-        defer { stateLock.unlock() }
 
         if page == USAGE_PAGE_GENERIC_DESKTOP {
             switch usage {
@@ -211,6 +282,11 @@ func startCapture() {
                 state.rt = (intValue != 0) ? 127 : 0
             }
         }
+
+        let keyboardState = KeyboardState(buttons: state.buttons, lx: state.lx, ly: state.ly,
+                                          rx: state.rx, ry: state.ry, hat: state.hat)
+        stateLock.unlock()
+        azaharKeyboard?.update(keyboardState)
     }, nil)
 
     IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
@@ -254,6 +330,9 @@ func startEmitLoop() {
 
 print("AresTranslator starting — Matching VID:PID \(String(format: "0x%04X", ARES_VENDOR_ID)):\(String(format: "0x%04X", ARES_PRODUCT_ID))")
 checkAndRequestPermissions()
+if AZAHAR_KEYBOARD_MODE {
+    print("Azahar keyboard mode enabled — events are sent only to Azahar.")
+}
 
 startCapture()
 startEmitLoop()

@@ -7,7 +7,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AresTranslator",
-            path: "Sources/AresTranslator"
+            path: "Sources/AresTranslator",
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+            ]
         ),
         .executableTarget(
             name: "GCTest",
