@@ -75,7 +75,19 @@ if pgrep -x Astris >/dev/null; then
     fail "Astris is already open. Quit it first, then launch through this script so the controller bridge can load."
 fi
 
-if ! pgrep -x AresTranslator >/dev/null; then
+CURRENT_HELPER_RUNNING=false
+for helper_pid in $(pgrep -x AresTranslator || true); do
+    helper_command="$(ps -o command= -p "$helper_pid" 2>/dev/null || true)"
+    if [[ "$helper_command" == "$TRANSLATOR_BIN"* ]]; then
+        CURRENT_HELPER_RUNNING=true
+    else
+        echo "[Ares launcher] Stopping stale controller helper from an older project location (PID $helper_pid)..."
+        kill "$helper_pid" 2>/dev/null || true
+    fi
+done
+sleep 0.2
+
+if [ "$CURRENT_HELPER_RUNNING" = false ]; then
     echo "[Ares launcher] Starting controller helper..."
     "$TRANSLATOR_BIN" >"$TRANSLATOR_LOG" 2>&1 &
     sleep 0.5
