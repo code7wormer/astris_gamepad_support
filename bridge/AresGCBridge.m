@@ -49,6 +49,7 @@ static void logAzaharSDLJoysticksIfRequested(void) {
     typedef struct { uint8_t data[16]; } SDL_JoystickGUID;
     typedef int (*SDL_NumJoysticksFn)(void);
     typedef int (*SDL_InitSubSystemFn)(uint32_t);
+    typedef const char *(*SDL_GetErrorFn)(void);
     typedef void *(*SDL_JoystickOpenFn)(int);
     typedef SDL_JoystickGUID (*SDL_JoystickGetGUIDFn)(void *);
     typedef void (*SDL_JoystickGetGUIDStringFn)(SDL_JoystickGUID, char *, int);
@@ -57,6 +58,7 @@ static void logAzaharSDLJoysticksIfRequested(void) {
 
     SDL_NumJoysticksFn numJoysticks = (SDL_NumJoysticksFn)dlsym(RTLD_DEFAULT, "SDL_NumJoysticks");
     SDL_InitSubSystemFn initJoystick = (SDL_InitSubSystemFn)dlsym(RTLD_DEFAULT, "SDL_InitSubSystem");
+    SDL_GetErrorFn getError = (SDL_GetErrorFn)dlsym(RTLD_DEFAULT, "SDL_GetError");
     SDL_JoystickOpenFn joystickOpen = (SDL_JoystickOpenFn)dlsym(RTLD_DEFAULT, "SDL_JoystickOpen");
     SDL_JoystickGetGUIDFn joystickGUID = (SDL_JoystickGetGUIDFn)dlsym(RTLD_DEFAULT, "SDL_JoystickGetGUID");
     SDL_JoystickGetGUIDStringFn guidString = (SDL_JoystickGetGUIDStringFn)dlsym(RTLD_DEFAULT, "SDL_JoystickGetGUIDString");
@@ -66,9 +68,14 @@ static void logAzaharSDLJoysticksIfRequested(void) {
         NSLog(@"[AresGCBridge] SDL joystick probe unavailable (Azahar has not loaded SDL input APIs)");
         return;
     }
-    // SDL_INIT_JOYSTICK. Azahar may defer this subsystem until its controls
-    // dialog opens; initialize it solely for the native-device probe.
-    if (initJoystick) initJoystick(0x00000200);
+    // SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER. Azahar may defer these
+    // subsystems until its controls dialog opens; initialize them solely for
+    // the native-device probe.
+    int initResult = initJoystick ? initJoystick(0x00002200) : 0;
+    if (initResult != 0) {
+        NSLog(@"[AresGCBridge] SDL joystick initialization failed: %s",
+              getError ? getError() : "unknown SDL error");
+    }
     int count = numJoysticks();
     NSLog(@"[AresGCBridge] SDL native joystick count: %d", count);
 
