@@ -28,6 +28,17 @@ struct __attribute__((packed)) AresPacket {
 
 static GCController *g_aresController = nil;
 static dispatch_source_t g_socketSource = nil;
+static dispatch_source_t g_sdlTraceTimer = nil;
+static void *g_sdlJoystick = NULL;
+static int16_t (*g_sdlGetAxis)(void *, int) = NULL;
+static uint8_t (*g_sdlGetButton)(void *, int) = NULL;
+static uint8_t (*g_sdlGetHat)(void *, int) = NULL;
+static int g_sdlAxisCount = 0;
+static int g_sdlButtonCount = 0;
+static int g_sdlHatCount = 0;
+static int16_t g_lastAxes[16] = {0};
+static uint8_t g_lastButtons[32] = {0};
+static uint8_t g_lastHats[4] = {0};
 
 static void logAzaharSDLJoysticksIfRequested(void) {
     if (strcmp(getenv("ARES_DEBUG") ?: "", "1") != 0) return;
@@ -38,12 +49,18 @@ static void logAzaharSDLJoysticksIfRequested(void) {
     typedef SDL_JoystickGUID (*SDL_JoystickGetGUIDFn)(void *);
     typedef void (*SDL_JoystickGetGUIDStringFn)(SDL_JoystickGUID, char *, int);
     typedef const char *(*SDL_JoystickNameForIndexFn)(int);
+    typedef int (*SDL_JoystickNumAxesFn)(void *);
+    typedef int (*SDL_JoystickNumButtonsFn)(void *);
+    typedef int (*SDL_JoystickNumHatsFn)(void *);
 
     SDL_NumJoysticksFn numJoysticks = (SDL_NumJoysticksFn)dlsym(RTLD_DEFAULT, "SDL_NumJoysticks");
     SDL_JoystickOpenFn joystickOpen = (SDL_JoystickOpenFn)dlsym(RTLD_DEFAULT, "SDL_JoystickOpen");
     SDL_JoystickGetGUIDFn joystickGUID = (SDL_JoystickGetGUIDFn)dlsym(RTLD_DEFAULT, "SDL_JoystickGetGUID");
     SDL_JoystickGetGUIDStringFn guidString = (SDL_JoystickGetGUIDStringFn)dlsym(RTLD_DEFAULT, "SDL_JoystickGetGUIDString");
     SDL_JoystickNameForIndexFn joystickName = (SDL_JoystickNameForIndexFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNameForIndex");
+    SDL_JoystickNumAxesFn numAxes = (SDL_JoystickNumAxesFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNumAxes");
+    SDL_JoystickNumButtonsFn numButtons = (SDL_JoystickNumButtonsFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNumButtons");
+    SDL_JoystickNumHatsFn numHats = (SDL_JoystickNumHatsFn)dlsym(RTLD_DEFAULT, "SDL_JoystickNumHats");
     if (!numJoysticks || !joystickOpen || !joystickGUID || !guidString) return;
 
     for (int index = 0; index < numJoysticks(); index++) {
@@ -53,6 +70,42 @@ static void logAzaharSDLJoysticksIfRequested(void) {
         guidString(joystickGUID(joystick), guid, sizeof(guid));
         NSLog(@"[AresGCBridge] SDL joystick %d: %s | GUID: %s", index,
               joystickName ? joystickName(index) : "Unknown", guid);
+        if (index == 0 && numAxes && numButtons && numHats) {
+            g_sdlJoystick = joystick;
+            g_sdlAxisCount = MIN(numAxes(joystick), 16);
+            g_sdlButtonCount = MIN(numButtons(joystick), 32);
+            g_sdlHatCount = MIN(numHats(joystick), 4);
+            g_sdlGetAxis = (int16_t (*)(void *, int))dlsym(RTLD_DEFAULT, "SDL_JoystickGetAxis");
+            g_sdlGetButton = (uint8_t (*)(void *, int))dlsym(RTLD_DEFAULT, "SDL_JoystickGetButton");
+            g_sdlGetHat = (uint8_t (*)(void *, int))dlsym(RTLD_DEFAULT, "SDL_JoystickGetHat");
+            NSLog(@"[AresGCBridge] SDL virtual layout: %d axes, %d buttons, %d hats",
+                  g_sdlAxisCount, g_sdlButtonCount, g_sdlHatCount);
+        }
+    }
+}
+
+static void traceAzaharSDLStateIfRequested(void) {
+    if (!g_sdlJoystick || !g_sdlGetAxis || !g_sdlGetButton || !g_sdlGetHat) return;
+    for (int i = 0; i < g_sdlAxisCount; i++) {
+        int16_t value = g_sdlGetAxis(g_sdlJoystick, i);
+        if (value != g_lastAxes[i]) {
+            g_lastAxes[i] = value;
+            NSLog(@"[AresGCBridge] SDL axis %d = %d", i, value);
+        }
+    }
+    for (int i = 0; i < g_sdlButtonCount; i++) {
+        uint8_t value = g_sdlGetButton(g_sdlJoystick, i);
+        if (value != g_lastButtons[i]) {
+            g_lastButtons[i] = value;
+            NSLog(@"[AresGCBridge] SDL button %d = %d", i, value);
+        }
+    }
+    for (int i = 0; i < g_sdlHatCount; i++) {
+        uint8_t value = g_sdlGetHat(g_sdlJoystick, i);
+        if (value != g_lastHats[i]) {
+            g_lastHats[i] = value;
+            NSLog(@"[AresGCBridge] SDL hat %d = %d", i, value);
+        }
     }
 }
 
@@ -244,6 +297,12 @@ static void AresGCBridge_Init(void) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                        dispatch_get_main_queue(), ^{
             logAzaharSDLJoysticksIfRequested();
+            g_sdlTraceTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
+                                                      dispatch_get_main_queue());
+            dispatch_source_set_timer(g_sdlTraceTimer, dispatch_time(DISPATCH_TIME_NOW, 0),
+                                      100 * NSEC_PER_MSEC, 10 * NSEC_PER_MSEC);
+            dispatch_source_set_event_handler(g_sdlTraceTimer, ^{ traceAzaharSDLStateIfRequested(); });
+            dispatch_resume(g_sdlTraceTimer);
         });
     }
 }
