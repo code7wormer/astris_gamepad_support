@@ -108,7 +108,7 @@ Azahar can use the same bridge, but must be launched separately. Quit both Astri
 ./launch_azahar.sh
 ```
 
-Do not use the old SDL profile created during troubleshooting; Azahar rejected that profile's serialized mappings. The launcher supplies the native GameController profile directly.
+The launcher uses macOS's normal Azahar.app launch path and passes the bridge only to that new process. Do not use the old SDL profile created during troubleshooting; Azahar rejected that profile's serialized mappings. The launcher supplies the native GameController profile directly.
 
 ## Controller mapping
 

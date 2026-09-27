@@ -52,5 +52,8 @@ if [ "$CURRENT_HELPER_RUNNING" = false ]; then
     pgrep -x AresTranslator >/dev/null || fail "The controller helper did not start. See $TRANSLATOR_LOG"
 fi
 
-echo "[Ares Azahar launcher] Launching Azahar with Ares controller support..."
-exec env DYLD_INSERT_LIBRARIES="$BRIDGE_DYLIB" "$AZAHAR_BIN" "$@"
+echo "[Ares Azahar launcher] Launching Azahar.app with Ares controller support..."
+# LaunchServices preserves Azahar's normal app-bundle environment (camera,
+# documents, and sandbox paths). `open --env` passes the bridge only to this
+# new instance, avoiding Azahar's direct-executable warning.
+open -n --env "DYLD_INSERT_LIBRARIES=$BRIDGE_DYLIB" "$AZAHAR_APP" --args "$@"
