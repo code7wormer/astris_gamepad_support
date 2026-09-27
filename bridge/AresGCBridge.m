@@ -279,6 +279,17 @@ __attribute__((constructor))
 static void AresGCBridge_Init(void) {
     NSLog(@"[AresGCBridge] Initializing bridge in PID %d...", getpid());
 
+    // Azahar's native SDL backend needs to bind the physical Ares, not the
+    // synthetic snapshot.  This diagnostic mode loads only long enough to
+    // report Azahar's own physical SDL GUID.
+    if (strcmp(getenv("ARES_SDL_PROBE_ONLY") ?: "", "1") == 0) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
+            logAzaharSDLJoysticksIfRequested();
+        });
+        return;
+    }
+
     Class gcClass = NSClassFromString(@"GCController");
     if (!gcClass) {
         NSLog(@"[AresGCBridge] GCController class not found, skipping");

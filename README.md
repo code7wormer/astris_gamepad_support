@@ -100,15 +100,6 @@ The launcher checks the two Astris signing entitlements that permit the bridge (
 - **Build-tool error:** install Apple Command Line Tools with `xcode-select --install`, then launch again.
 - **Need detailed HID enumeration:** launch once with `ARES_DEBUG=1 ./launch_astris.sh`; the extra details are written to the helper log.
 
-## Azahar
-
-Azahar can use the same bridge, but must be launched separately. Quit both Astris and Azahar, then double-click `Run Azahar with Ares.command`, or run:
-
-```bash
-./launch_azahar.sh
-```
-
-The launcher uses macOS's normal Azahar.app launch path and passes the bridge only to that new process. Do not use the old SDL profile created during troubleshooting; Azahar rejected that profile's serialized mappings. The launcher supplies the native GameController profile directly.
 
 ## Controller mapping
 
