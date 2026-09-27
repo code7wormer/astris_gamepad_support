@@ -8,6 +8,8 @@
     <string>Nintendo</string>
     <key>CFBundleIdentifier</key>
     <string>com.code7wormer.nintendo-launcher</string>
+    <key>CFBundleIconFile</key>
+    <string>Nintendo.icns</string>
     <key>CFBundleName</key>
     <string>Nintendo</string>
     <key>CFBundlePackageType</key>
