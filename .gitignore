@@ -1,0 +1,14 @@
+# Swift build products
+.build/
+
+# Locally compiled bridge and optional application bundles
+bridge/*.dylib
+*.app/
+
+# macOS and editor metadata
+.DS_Store
+*.swp
+*.xcuserstate
+
+# Runtime diagnostics
+*.log
