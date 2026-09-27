@@ -102,5 +102,3 @@ The launcher checks the two Astris signing entitlements that permit the bridge (
 ## Controller mapping
 
 The Ares is read as USB VID:PID `2563:057a`. Left stick uses X/Y, right stick uses Z/Rz, the D-pad uses the hat switch, and all 13 buttons are translated to an extended GameController profile.
-
-For technical background, see [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md).
