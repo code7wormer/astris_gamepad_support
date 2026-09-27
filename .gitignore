@@ -4,6 +4,7 @@
 # Locally compiled bridge and optional application bundles
 bridge/*.dylib
 *.app/
+Nintendo.app.template/Contents/Resources/Nintendo.iconset/
 
 # macOS and editor metadata
 .DS_Store
