@@ -108,9 +108,15 @@ Azahar cannot enumerate this Ares controller through its SDL backend on this Mac
 
 The controller service runs through macOS `launchd` for reliable background operation, but the launcher owns its lifetime: it stops automatically when Azahar quits or when its Terminal window is closed. When Azahar is not the frontmost app, it emits no keyboard events.
 
-If macOS denies the helper's Input Monitoring or Accessibility permission, the launcher stops before opening Azahar and explains what is needed. This prevents a silent no-input session.
-
 Azahar's keyboard profile must bind `T/G/C/H` to D-pad Up/Down/Left/Right respectively. The other relevant keys are `A/S/Z/X` for face buttons, `Q/W` for shoulders, `1/2` for triggers, arrow keys for the Circle Pad, and `I/J/K/L` for the C-Stick. You can verify Azahar's keyboard controls directly with those keys before launching the controller helper.
+
+## CrossOver Support
+
+The repository now also includes a zero-overhead bridge for **CrossOver (Wine)** on macOS, supporting any Windows game with XInput or DirectInput (e.g., *Sekiro*, *Dark Souls*, etc.).
+
+* Source: `bridge/AresCrossOverBridge.m`
+* Linked into: `/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/lib64/libSDL2-2.0.0.dylib`
+* **Lifecycle:** Starts `AresTranslator` automatically on-demand when Wine launches a game, and terminates it cleanly when the game closes. Zero background battery or CPU usage when CrossOver is closed.
 
 ## Limitations
 

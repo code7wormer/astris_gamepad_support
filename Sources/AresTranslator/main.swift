@@ -318,14 +318,18 @@ var _timerKeepAlive: DispatchSourceTimer?
 
 func startEmitLoop() {
     let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
-    timer.schedule(deadline: .now(), repeating: .milliseconds(10)) // 100 Hz
+    timer.schedule(deadline: .now(), repeating: .milliseconds(33)) // ~30 Hz — sufficient for gaming, reduces CPU/heat
     timer.setEventHandler {
+        // If parent process died and we were adopted by init/launchd (PID 1), exit cleanly
+        if getppid() == 1 {
+            exit(0)
+        }
         var pkt = buildPacket()
         emitter.send(packet: &pkt)
     }
     timer.resume()
     _timerKeepAlive = timer
-    print("Broadcasting Ares state to local bridge at 127.0.0.1:\(ARES_UDP_PORT) (100 Hz)")
+    print("Broadcasting Ares state to local bridge at 127.0.0.1:\(ARES_UDP_PORT) (~30 Hz)")
 }
 
 // ----- Entry point -----------------------------------------------------
