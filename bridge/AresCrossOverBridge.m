@@ -89,6 +89,7 @@ typedef int  (*SDL_SetHint_fn)(const char *, const char *);
 static GCController      *g_aresController       = nil;
 static dispatch_source_t  g_socketSource         = nil;
 static pid_t              g_spawnedTranslatorPid = -1;
+static time_t             g_lastPacketTime       = 0;
 
 static GCControllerButtonInput   *s_btnX = nil, *s_btnA = nil, *s_btnB = nil, *s_btnY = nil;
 static GCControllerButtonInput   *s_btnL1 = nil, *s_btnR1 = nil;
@@ -156,6 +157,7 @@ static NSArray<GCController *> * swizzled_controllers(id self, SEL _cmd) {
 // Forward declarations
 static void setupControllerIfNeeded(void);
 static BOOL tryInjectSDLEvent(void);
+static void zeroAllInputs(void);
 
 // ---------------------------------------------------------------------------
 // Try to inject SDL_JOYDEVICEADDED into the SDL event queue
@@ -163,10 +165,8 @@ static BOOL tryInjectSDLEvent(void);
 // ---------------------------------------------------------------------------
 static BOOL tryInjectSDLEvent(void) {
     SDL_NumJoysticks_fn numJ = (SDL_NumJoysticks_fn)dlsym(RTLD_DEFAULT, "SDL_NumJoysticks");
-    if (!numJ) return NO;
-
     SDL_PushEvent_fn pushFn = (SDL_PushEvent_fn)dlsym(RTLD_DEFAULT, "SDL_PushEvent");
-    if (!pushFn) return NO;
+    if (!numJ && !pushFn) return NO;
 
     SDL_SetHint_fn setHint = (SDL_SetHint_fn)dlsym(RTLD_DEFAULT, "SDL_SetHint");
     if (setHint) {
@@ -184,50 +184,59 @@ static BOOL tryInjectSDLEvent(void) {
                           object:g_aresController];
     }
 
-    AresSDLEvent e;
-    memset(&e, 0, sizeof(e));
-    e.jdevice.type  = SDL_JOYDEVICEADDED;
-    e.jdevice.which = 0;
-    int result = pushFn(&e);
-    NSLog(@"[AresCrossOverBridge] Injected SDL_JOYDEVICEADDED (result=%d, joysticks=%d)", result, numJ());
+    if (pushFn) {
+        AresSDLEvent e;
+        memset(&e, 0, sizeof(e));
+        e.jdevice.type  = SDL_JOYDEVICEADDED;
+        e.jdevice.which = 0;
+        int result = pushFn(&e);
+        NSLog(@"[AresCrossOverBridge] Injected SDL_JOYDEVICEADDED (result=%d)", result);
+    }
 
     return YES;
 }
 
 // ---------------------------------------------------------------------------
-// POSIX thread: fast initial detection (50ms) + permanent keep-alive loop
+// POSIX thread: fast initial detection (50ms) + permanent watchdog loop
 // ---------------------------------------------------------------------------
 static void* sdlRetryThreadFunc(void *arg) {
     (void)arg;
 
-    // Phase 1: Fast retry every 50ms (up to 100 attempts = 5s)
-    BOOL connected = NO;
-    for (int attempt = 1; attempt <= 100; attempt++) {
+    // Phase 1: Fast retry every 50ms (up to 60 attempts = 3s) to catch Wine/SDL init
+    for (int attempt = 1; attempt <= 60; attempt++) {
         @autoreleasepool {
             if (tryInjectSDLEvent()) {
-                NSLog(@"[AresCrossOverBridge] Fast detection succeeded on attempt #%d (%d ms)", attempt, attempt * 50);
-                connected = YES;
+                NSLog(@"[AresCrossOverBridge] Attached to Wine/SDL on attempt #%d (%d ms)", attempt, attempt * 50);
                 break;
             }
         }
         usleep(50000); // 50ms
     }
 
-    if (!connected) {
-        NSLog(@"[AresCrossOverBridge] Fast detection timed out, will keep trying in keepalive loop");
-    }
-
-    // Phase 2: Permanent keep-alive loop — runs every 3 seconds
+    // Phase 2: Permanent watchdog & auto-heal loop (runs every 1 second)
+    // - Neutralizes inputs if packets stop for >1s (prevents stuck character movement on cable unplug)
+    // - Auto-respawns AresTranslator if it stopped running
+    // - Never polls SDL_NumJoysticks or spams GCControllerDidConnectNotification
+    BOOL wasZeroed = NO;
     while (1) {
-        sleep(3);
+        sleep(1);
         @autoreleasepool {
-            SDL_NumJoysticks_fn numJ = (SDL_NumJoysticks_fn)dlsym(RTLD_DEFAULT, "SDL_NumJoysticks");
-            if (numJ) {
-                int count = numJ();
-                if (count == 0) {
-                    NSLog(@"[AresCrossOverBridge] Keepalive: 0 joysticks detected, re-injecting...");
-                    tryInjectSDLEvent();
+            time_t now = time(NULL);
+
+            if (g_lastPacketTime > 0 && (now - g_lastPacketTime > 1)) {
+                if (!wasZeroed) {
+                    zeroAllInputs();
+                    wasZeroed = YES;
+                    NSLog(@"[AresCrossOverBridge] Watchdog: input stream paused >1s, inputs neutralized");
                 }
+            } else if (g_lastPacketTime > 0) {
+                wasZeroed = NO;
+            }
+
+            // Auto-heal: verify AresTranslator is alive
+            if (system("pgrep -x AresTranslator > /dev/null 2>&1") != 0) {
+                NSLog(@"[AresCrossOverBridge] Watchdog: AresTranslator process missing, restarting...");
+                ensureTranslatorRunning();
             }
         }
     }
@@ -276,6 +285,28 @@ static void updateDpad(GCControllerDirectionPad *dpad, uint8_t hatValue) {
     [dpad setValueForXAxis:dx yAxis:dy];
 }
 
+static void zeroAllInputs(void) {
+    if (s_leftStick) [s_leftStick setValueForXAxis:0.0f yAxis:0.0f];
+    if (s_rightStick) [s_rightStick setValueForXAxis:0.0f yAxis:0.0f];
+    if (s_dpad) [s_dpad setValueForXAxis:0.0f yAxis:0.0f];
+    if (s_btnX) [s_btnX setValue:0.0f];
+    if (s_btnA) [s_btnA setValue:0.0f];
+    if (s_btnB) [s_btnB setValue:0.0f];
+    if (s_btnY) [s_btnY setValue:0.0f];
+    if (s_btnL1) [s_btnL1 setValue:0.0f];
+    if (s_btnR1) [s_btnR1 setValue:0.0f];
+    if (s_btnL2) [s_btnL2 setValue:0.0f];
+    if (s_btnR2) [s_btnR2 setValue:0.0f];
+    if (s_btnMinus) [s_btnMinus setValue:0.0f];
+    if (s_btnPlus) [s_btnPlus setValue:0.0f];
+    if (s_btnL3) [s_btnL3 setValue:0.0f];
+    if (s_btnR3) [s_btnR3 setValue:0.0f];
+    if (s_btnHome) [s_btnHome setValue:0.0f];
+    s_prevButtons = 0;
+    s_prevLX = 0; s_prevLY = 0; s_prevRX = 0; s_prevRY = 0;
+    s_prevHat = 0xFF;
+}
+
 static void setupControllerIfNeeded(void) {
     if (g_aresController) return;
 
@@ -318,6 +349,7 @@ static uint64_t g_pktCount = 0;
 static void processPacket(const struct AresPacket *pkt) {
     if (pkt->magic != ARES_MAGIC) return;
 
+    g_lastPacketTime = time(NULL);
     g_pktCount++;
     if (g_pktCount == 1 || (g_pktCount % 300 == 0)) {
         NSLog(@"[AresCrossOverBridge] Processed %llu packets (buttons=0x%04x lx=%d ly=%d rx=%d ry=%d hat=%d)",

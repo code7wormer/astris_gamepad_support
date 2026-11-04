@@ -210,6 +210,7 @@ func startCapture() {
     IOHIDManagerSetDeviceMatching(manager, matchDict as CFDictionary)
 
     IOHIDManagerRegisterDeviceMatchingCallback(manager, { context, result, sender, device in
+        guard result == kIOReturnSuccess else { return }
         print("Ares connected — enumerating elements")
         guard let elements = IOHIDDeviceCopyMatchingElements(device, nil, IOOptionBits(kIOHIDOptionsTypeNone)) as? [IOHIDElement] else {
             return
@@ -241,6 +242,7 @@ func startCapture() {
     }, nil)
 
     IOHIDManagerRegisterInputValueCallback(manager, { context, result, sender, value in
+        guard result == kIOReturnSuccess else { return }
         let element = IOHIDValueGetElement(value)
         let page = Int(IOHIDElementGetUsagePage(element))
         let usage = Int(IOHIDElementGetUsage(element))
