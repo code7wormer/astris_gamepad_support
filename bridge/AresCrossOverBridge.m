@@ -220,13 +220,6 @@ static void* sdlRetryThreadFunc(void *arg) {
     // Phase 2: Permanent keep-alive loop — runs every 3 seconds
     while (1) {
         sleep(3);
-
-        // Fail-safe: if parent wineserver died and we were orphaned (adopted by init/PID 1), exit immediately!
-        if (getppid() == 1) {
-            NSLog(@"[AresCrossOverBridge] Parent wineserver terminated (adopted by PID 1). Exiting winedevice cleanly.");
-            _exit(0);
-        }
-
         @autoreleasepool {
             SDL_NumJoysticks_fn numJ = (SDL_NumJoysticks_fn)dlsym(RTLD_DEFAULT, "SDL_NumJoysticks");
             if (numJ) {
