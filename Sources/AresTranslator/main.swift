@@ -226,6 +226,20 @@ func startCapture() {
         }
     }, nil)
 
+    IOHIDManagerRegisterDeviceRemovalCallback(manager, { context, result, sender, device in
+        print("Ares disconnected — zeroing controller state")
+        stateLock.lock()
+        state.buttons = 0
+        state.lx = 0
+        state.ly = 0
+        state.rx = 0
+        state.ry = 0
+        state.lt = 0
+        state.rt = 0
+        state.hat = 8
+        stateLock.unlock()
+    }, nil)
+
     IOHIDManagerRegisterInputValueCallback(manager, { context, result, sender, value in
         let element = IOHIDValueGetElement(value)
         let page = Int(IOHIDElementGetUsagePage(element))
