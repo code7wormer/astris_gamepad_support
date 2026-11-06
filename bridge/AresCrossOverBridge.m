@@ -9,6 +9,7 @@
 #import <fcntl.h>
 #import <dlfcn.h>
 #import <pthread.h>
+#import <time.h>
 #import <IOKit/hid/IOHIDLib.h>
 
 #define DYLD_INTERPOSE(_replacement,_replacee) \
@@ -16,35 +17,33 @@
             __attribute__ ((section ("__DATA,__interpose"))) = { (const void*)(unsigned long)&_replacement, (const void*)(unsigned long)&_replacee };
 
 // ---------------------------------------------------------------------------
-// Block raw physical Ares from IOHIDDeviceOpen (prevents 100% CPU winebus flood)
+// Block raw physical Ares from IOHIDDeviceOpen (prevents 100% CPU winebus
+// flood). Applies to both DirectInput mode (0x2563:0x057A) and
+// XInput / "Xbox360" mode (0x045E:0x028E) that the controller switches into.
 // ---------------------------------------------------------------------------
+static BOOL isAresDevice(IOHIDDeviceRef device) {
+    if (!device) return NO;
+    CFNumberRef vidNum = (CFNumberRef)IOHIDDeviceGetProperty(device, CFSTR(kIOHIDVendorIDKey));
+    CFNumberRef pidNum = (CFNumberRef)IOHIDDeviceGetProperty(device, CFSTR(kIOHIDProductIDKey));
+    int vid = 0, pid = 0;
+    if (vidNum) CFNumberGetValue(vidNum, kCFNumberIntType, &vid);
+    if (pidNum) CFNumberGetValue(pidNum, kCFNumberIntType, &pid);
+    return (vid == 0x2563 && pid == 0x057A) || (vid == 0x045E && pid == 0x028E);
+}
+
 static IOReturn my_IOHIDDeviceOpen(IOHIDDeviceRef device, IOOptionBits options) {
-    if (device) {
-        CFNumberRef vidNum = (CFNumberRef)IOHIDDeviceGetProperty(device, CFSTR(kIOHIDVendorIDKey));
-        CFNumberRef pidNum = (CFNumberRef)IOHIDDeviceGetProperty(device, CFSTR(kIOHIDProductIDKey));
-        int vid = 0, pid = 0;
-        if (vidNum) CFNumberGetValue(vidNum, kCFNumberIntType, &vid);
-        if (pidNum) CFNumberGetValue(pidNum, kCFNumberIntType, &pid);
-        if (vid == 0x2563 && pid == 0x057A) {
-            NSLog(@"[AresCrossOverBridge] Blocked raw IOHIDDeviceOpen for Ares (0x2563:0x057A)");
-            return kIOReturnNotOpen;
-        }
+    if (isAresDevice(device)) {
+        NSLog(@"[AresCrossOverBridge] Blocked raw IOHIDDeviceOpen for Ares");
+        return kIOReturnNotOpen;
     }
     return IOHIDDeviceOpen(device, options);
 }
 DYLD_INTERPOSE(my_IOHIDDeviceOpen, IOHIDDeviceOpen);
 
 static void my_IOHIDDeviceRegisterInputReportCallback(IOHIDDeviceRef device, uint8_t *report, CFIndex reportLength, IOHIDReportCallback callback, void *context) {
-    if (device) {
-        CFNumberRef vidNum = (CFNumberRef)IOHIDDeviceGetProperty(device, CFSTR(kIOHIDVendorIDKey));
-        CFNumberRef pidNum = (CFNumberRef)IOHIDDeviceGetProperty(device, CFSTR(kIOHIDProductIDKey));
-        int vid = 0, pid = 0;
-        if (vidNum) CFNumberGetValue(vidNum, kCFNumberIntType, &vid);
-        if (pidNum) CFNumberGetValue(pidNum, kCFNumberIntType, &pid);
-        if (vid == 0x2563 && pid == 0x057A) {
-            NSLog(@"[AresCrossOverBridge] Blocked IOHIDRegisterInputReportCallback for Ares");
-            return;
-        }
+    if (isAresDevice(device)) {
+        NSLog(@"[AresCrossOverBridge] Blocked IOHIDRegisterInputReportCallback for Ares");
+        return;
     }
     IOHIDDeviceRegisterInputReportCallback(device, report, reportLength, callback, context);
 }
@@ -78,10 +77,12 @@ typedef union {
 } AresSDLEvent;
 
 #define SDL_JOYDEVICEADDED 0x605
+#define SDL_INIT_JOYSTICK       0x00000200u
+#define SDL_INIT_GAMECONTROLLER 0x00002000u
 
-typedef int  (*SDL_PushEvent_fn)(AresSDLEvent *);
-typedef int  (*SDL_NumJoysticks_fn)(void);
-typedef int  (*SDL_SetHint_fn)(const char *, const char *);
+typedef int      (*SDL_PushEvent_fn)(AresSDLEvent *);
+typedef uint32_t (*SDL_WasInit_fn)(uint32_t);
+typedef int      (*SDL_SetHint_fn)(const char *, const char *);
 
 // ---------------------------------------------------------------------------
 // Global state
@@ -161,12 +162,20 @@ static void zeroAllInputs(void);
 
 // ---------------------------------------------------------------------------
 // Try to inject SDL_JOYDEVICEADDED into the SDL event queue
-// Returns YES if SDL is initialized and event was pushed
+// Returns YES only if SDL joystick subsystem is fully initialized and event was
+// successfully pushed (result == 1). Avoids calling SDL before it is ready,
+// which previously caused winedevice.exe to exit due to thread-safety violations.
 // ---------------------------------------------------------------------------
 static BOOL tryInjectSDLEvent(void) {
-    SDL_NumJoysticks_fn numJ = (SDL_NumJoysticks_fn)dlsym(RTLD_DEFAULT, "SDL_NumJoysticks");
+    // Guard: only proceed if SDL joystick / gamecontroller subsystem is fully up
+    SDL_WasInit_fn wasInit = (SDL_WasInit_fn)dlsym(RTLD_DEFAULT, "SDL_WasInit");
+    if (!wasInit) return NO;
+    if ((wasInit(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) & (SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER)) == 0) {
+        return NO; // SDL not ready yet — do not call SDL functions
+    }
+
     SDL_PushEvent_fn pushFn = (SDL_PushEvent_fn)dlsym(RTLD_DEFAULT, "SDL_PushEvent");
-    if (!numJ && !pushFn) return NO;
+    if (!pushFn) return NO;
 
     SDL_SetHint_fn setHint = (SDL_SetHint_fn)dlsym(RTLD_DEFAULT, "SDL_SetHint");
     if (setHint) {
@@ -184,16 +193,14 @@ static BOOL tryInjectSDLEvent(void) {
                           object:g_aresController];
     }
 
-    if (pushFn) {
-        AresSDLEvent e;
-        memset(&e, 0, sizeof(e));
-        e.jdevice.type  = SDL_JOYDEVICEADDED;
-        e.jdevice.which = 0;
-        int result = pushFn(&e);
-        NSLog(@"[AresCrossOverBridge] Injected SDL_JOYDEVICEADDED (result=%d)", result);
-    }
+    AresSDLEvent e;
+    memset(&e, 0, sizeof(e));
+    e.jdevice.type  = SDL_JOYDEVICEADDED;
+    e.jdevice.which = 0;
+    int result = pushFn(&e);
+    NSLog(@"[AresCrossOverBridge] Injected SDL_JOYDEVICEADDED (result=%d)", result);
 
-    return YES;
+    return (result == 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -202,8 +209,8 @@ static BOOL tryInjectSDLEvent(void) {
 static void* sdlRetryThreadFunc(void *arg) {
     (void)arg;
 
-    // Phase 1: Fast retry every 50ms (up to 60 attempts = 3s) to catch Wine/SDL init
-    for (int attempt = 1; attempt <= 60; attempt++) {
+    // Phase 1: Fast retry every 50ms (up to 100 attempts = 5s) waiting for Wine/SDL init
+    for (int attempt = 1; attempt <= 100; attempt++) {
         @autoreleasepool {
             if (tryInjectSDLEvent()) {
                 NSLog(@"[AresCrossOverBridge] Attached to Wine/SDL on attempt #%d (%d ms)", attempt, attempt * 50);
@@ -214,8 +221,9 @@ static void* sdlRetryThreadFunc(void *arg) {
     }
 
     // Phase 2: Permanent watchdog & auto-heal loop (runs every 1 second)
-    // - Neutralizes inputs if packets stop for >1s (prevents stuck character movement on cable unplug)
-    // - Auto-respawns AresTranslator if it stopped running
+    // - Neutralizes inputs if packets stop for >1s (prevents stuck movement on cable unplug)
+    // - If packets stop for >3s, recycles AresTranslator (broken HID session recovery)
+    // - If AresTranslator is simply missing, respawns it
     // - Never polls SDL_NumJoysticks or spams GCControllerDidConnectNotification
     BOOL wasZeroed = NO;
     while (1) {
@@ -223,7 +231,8 @@ static void* sdlRetryThreadFunc(void *arg) {
         @autoreleasepool {
             time_t now = time(NULL);
 
-            if (g_lastPacketTime > 0 && (now - g_lastPacketTime > 1)) {
+            // Neutralize stale inputs
+            if (g_lastPacketTime > 0 && (now - g_lastPacketTime) > 1) {
                 if (!wasZeroed) {
                     zeroAllInputs();
                     wasZeroed = YES;
@@ -233,9 +242,16 @@ static void* sdlRetryThreadFunc(void *arg) {
                 wasZeroed = NO;
             }
 
-            // Auto-heal: verify AresTranslator is alive
-            if (system("pgrep -x AresTranslator > /dev/null 2>&1") != 0) {
-                NSLog(@"[AresCrossOverBridge] Watchdog: AresTranslator process missing, restarting...");
+            // If packets have been dead for >3s, the translator's HID session is likely broken
+            // (happens when USB was hot-unplugged and re-enumerated). Recycle it.
+            if (g_lastPacketTime > 0 && (now - g_lastPacketTime) > 3) {
+                NSLog(@"[AresCrossOverBridge] Watchdog: packets dead >3s, recycling AresTranslator");
+                system("killall -9 AresTranslator > /dev/null 2>&1");
+                sleep(1); // let the new device enumerate fully
+                g_lastPacketTime = 0;
+                ensureTranslatorRunning();
+            } else if (system("pgrep -x AresTranslator > /dev/null 2>&1") != 0) {
+                NSLog(@"[AresCrossOverBridge] Watchdog: AresTranslator missing, restarting...");
                 ensureTranslatorRunning();
             }
         }

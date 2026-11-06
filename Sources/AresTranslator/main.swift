@@ -19,8 +19,11 @@ setbuf(stderr, nil)
 
 // ----- Config -----------------------------------------------------------
 
-let ARES_VENDOR_ID: Int  = 0x2563   // 9571
-let ARES_PRODUCT_ID: Int = 0x057A   // 1402
+let ARES_VENDOR_ID: Int  = 0x2563   // Cosmic Byte Ares D-Input mode
+let ARES_PRODUCT_ID: Int = 0x057A
+
+let ARES_XINPUT_VENDOR_ID: Int  = 0x045E // Cosmic Byte Ares X-Input / Xbox 360 mode
+let ARES_XINPUT_PRODUCT_ID: Int = 0x028E
 
 let ARES_UDP_PORT: UInt16 = 49152
 let ARES_MAGIC: UInt32 = 0x41524553 // 'ARES'
@@ -203,14 +206,15 @@ func startCapture() {
     let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
     captureManager = manager
 
-    let matchDict: [String: Any] = [
-        kIOHIDVendorIDKey as String: ARES_VENDOR_ID,
-        kIOHIDProductIDKey as String: ARES_PRODUCT_ID
+    let matchArray: [[String: Any]] = [
+        [kIOHIDVendorIDKey as String: ARES_VENDOR_ID, kIOHIDProductIDKey as String: ARES_PRODUCT_ID],
+        [kIOHIDVendorIDKey as String: ARES_XINPUT_VENDOR_ID, kIOHIDProductIDKey as String: ARES_XINPUT_PRODUCT_ID]
     ]
-    IOHIDManagerSetDeviceMatching(manager, matchDict as CFDictionary)
+    IOHIDManagerSetDeviceMatchingMultiple(manager, matchArray as CFArray)
 
     IOHIDManagerRegisterDeviceMatchingCallback(manager, { context, result, sender, device in
         guard result == kIOReturnSuccess else { return }
+        IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone))
         print("Ares connected — enumerating elements")
         guard let elements = IOHIDDeviceCopyMatchingElements(device, nil, IOOptionBits(kIOHIDOptionsTypeNone)) as? [IOHIDElement] else {
             return
